@@ -60,21 +60,14 @@ const Contact = mongoose.model("Contact", contactSchema);
 // ================== BREVO EMAIL SETUP ==================
 let defaultClient = SibApiV3Sdk.ApiClient.instance;
 let apiKey = defaultClient.authentications["api-key"];
-apiKey.apiKey = process.env.BREVO_API_KEY;
+apiKey.apiKey = process.env.BREVO_API_KEY; // make sure .env has BREVO_API_KEY=xxxx
 
 let brevo = new SibApiV3Sdk.TransactionalEmailsApi();
 
 async function sendEmail({ to, subject, text }) {
   try {
     let sendSmtpEmail = {
-<<<<<<< HEAD
-      sender: {
-        email: "noreply@surakshacarcare.com",
-        name: "Suraksha Car Care",
-      },
-=======
       sender: { email: "noreply@surakshacarcare.com", name: "Suraksha Car Care" },
->>>>>>> 18833222a0ce43ef8106707099fdfa688950eaeb
       to: [{ email: to }],
       subject,
       textContent: text,
@@ -92,22 +85,8 @@ async function sendEmail({ to, subject, text }) {
 // ----- Book Appointment -----
 app.post("/api/appointments", async (req, res) => {
   try {
-<<<<<<< HEAD
-    const {
-      name,
-      email,
-      phone,
-      service,
-      date,
-      time,
-      address,
-      carModel,
-      message,
-    } = req.body;
-=======
     const { name, email, phone, service, date, time, address, carModel, message } =
       req.body;
->>>>>>> 18833222a0ce43ef8106707099fdfa688950eaeb
 
     const appointment = new Appointment({
       name,
@@ -124,12 +103,7 @@ app.post("/api/appointments", async (req, res) => {
     const saved = await appointment.save();
 
     res.status(201).json({
-<<<<<<< HEAD
-      message:
-        "Appointment booked successfully (emails will be sent in background)",
-=======
       message: "Appointment booked successfully (emails will be sent in background)",
->>>>>>> 18833222a0ce43ef8106707099fdfa688950eaeb
       appointment: saved,
     });
 
@@ -173,13 +147,7 @@ We will contact you shortly. Thank you for choosing us!
     });
   } catch (err) {
     console.error("❌ Error booking appointment:", err);
-<<<<<<< HEAD
-    res
-      .status(400)
-      .json({ message: "Error booking appointment", error: err.message });
-=======
     res.status(400).json({ message: "Error booking appointment", error: err.message });
->>>>>>> 18833222a0ce43ef8106707099fdfa688950eaeb
   }
 });
 
@@ -192,12 +160,7 @@ app.post("/api/contact", async (req, res) => {
     const saved = await contact.save();
 
     res.status(201).json({
-<<<<<<< HEAD
-      message:
-        "Message received successfully (emails will be sent in background)",
-=======
       message: "Message received successfully (emails will be sent in background)",
->>>>>>> 18833222a0ce43ef8106707099fdfa688950eaeb
       contact: saved,
     });
 
@@ -235,13 +198,7 @@ We have received your message and our team will get back to you soon.
     });
   } catch (err) {
     console.error("❌ Error saving contact:", err);
-<<<<<<< HEAD
-    res
-      .status(400)
-      .json({ message: "Error sending message", error: err.message });
-=======
     res.status(400).json({ message: "Error sending message", error: err.message });
->>>>>>> 18833222a0ce43ef8106707099fdfa688950eaeb
   }
 });
 
