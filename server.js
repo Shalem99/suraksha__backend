@@ -32,10 +32,9 @@ const appointmentSchema = new mongoose.Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, required: true, trim: true },
     service: { type: String, required: true },
-    // Convert string -> Date in controller
     date: { type: Date, required: true },
     time: { type: String, required: true },
-    address: { type: String, required: false },
+    address: { type: String },
     carModel: { type: String, required: true, trim: true },
     message: { type: String, trim: true },
     status: {
@@ -62,11 +61,22 @@ const Contact = mongoose.model("Contact", contactSchema);
 
 // ================== EMAIL SETUP ==================
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.EMAIL_HOST, // smtp.gmail.com
+  port: process.env.EMAIL_PORT, // 587
+  secure: process.env.EMAIL_PORT == 465, // true for port 465, false for 587
   auth: {
-    user: process.env.EMAIL_USER, // your Gmail
-    pass: process.env.EMAIL_PASS, // your Gmail App Password
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
+});
+
+// ✅ Verify transporter (debug in logs)
+transporter.verify((err, success) => {
+  if (err) {
+    console.error("❌ Nodemailer error:", err);
+  } else {
+    console.log("✅ Nodemailer is ready to send emails");
+  }
 });
 
 // ================== ROUTES ==================
@@ -77,13 +87,12 @@ app.post("/api/appointments", async (req, res) => {
     const { name, email, phone, service, date, time, address, carModel, message } =
       req.body;
 
-    // 🔹 Ensure date is stored as proper Date
     const appointment = new Appointment({
       name,
       email,
       phone,
       service,
-      date: new Date(date), // converts "2025-09-11" -> Date object
+      date: new Date(date),
       time,
       address,
       carModel,
