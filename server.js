@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -18,8 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 // ================== MongoDB Connection ==================
 mongoose
   .connect(
-    process.env.MONGODB_URI ||
-      "mongodb://mongo:dkkhogxzzRHFjvqjiQYhaDilpHjEFwIV@trolley.proxy.rlwy.net:50490",
+    process.env.MONGODB_URI,
     { useNewUrlParser: true, useUnifiedTopology: true }
   )
   .then(() => console.log("✅ MongoDB connected successfully"))
@@ -61,16 +59,19 @@ const Contact = mongoose.model("Contact", contactSchema);
 
 // ================== EMAIL SETUP ==================
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST, // smtp.gmail.com
+  host: process.env.EMAIL_HOST, // e.g., smtp.gmail.com
   port: process.env.EMAIL_PORT, // 587
-  secure: process.env.EMAIL_PORT == 465, // true for port 465, false for 587
+  secure: process.env.EMAIL_PORT == 465, // true for 465, false for 587
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  pool: true,         // ♻️ reuse connections
+  maxConnections: 5,  // up to 5 connections
+  maxMessages: 100,   // reuse a connection for 100 emails
 });
 
-// ✅ Verify transporter (debug in logs)
+// ✅ Verify transporter
 transporter.verify((err, success) => {
   if (err) {
     console.error("❌ Nodemailer error:", err);
@@ -101,12 +102,22 @@ app.post("/api/appointments", async (req, res) => {
 
     const saved = await appointment.save();
 
-    // 📩 Email to admin
-    await transporter.sendMail({
-      from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      subject: "🚗 New Appointment Booked",
-      text: `
+    // ✅ Respond immediately
+    res.status(201).json({
+      message: "Appointment booked successfully (emails will be sent in background)",
+      appointment: saved,
+    });
+
+    // 📩 Send emails in background
+    setImmediate(async () => {
+      try {
+        await Promise.all([
+          // Admin email
+          transporter.sendMail({
+            from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
+            to: process.env.EMAIL_USER,
+            subject: "🚗 New Appointment Booked",
+            text: `
 New booking received:
 
 Name: ${saved.name}
@@ -117,15 +128,15 @@ Date: ${saved.date.toDateString()} at ${saved.time}
 Car: ${saved.carModel}
 Address: ${saved.address || "N/A"}
 Message: ${saved.message || "N/A"}
-      `,
-    });
+            `,
+          }),
 
-    // 📩 Confirmation email to customer
-    await transporter.sendMail({
-      from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
-      to: saved.email,
-      subject: "✅ Appointment Confirmation",
-      text: `
+          // Customer confirmation
+          transporter.sendMail({
+            from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
+            to: saved.email,
+            subject: "✅ Appointment Confirmation",
+            text: `
 Hi ${saved.name},
 
 Your appointment has been successfully booked with Suraksha Car Care.
@@ -138,12 +149,13 @@ Your appointment has been successfully booked with Suraksha Car Care.
 We will contact you shortly. Thank you for choosing us!
 
 - Suraksha Car Care Team
-      `,
-    });
-
-    res.status(201).json({
-      message: "Appointment booked & emails sent successfully",
-      appointment: saved,
+            `,
+          }),
+        ]);
+        console.log("✅ Appointment emails sent");
+      } catch (mailErr) {
+        console.error("❌ Appointment email failed:", mailErr);
+      }
     });
   } catch (err) {
     console.error("❌ Error booking appointment:", err);
@@ -162,12 +174,22 @@ app.post("/api/contact", async (req, res) => {
     const contact = new Contact({ name, email, phone, subject, message });
     const saved = await contact.save();
 
-    // 📩 Email to admin
-    await transporter.sendMail({
-      from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      subject: `📩 New Contact Form: ${saved.subject}`,
-      text: `
+    // ✅ Respond immediately
+    res.status(201).json({
+      message: "Message received successfully (emails will be sent in background)",
+      contact: saved,
+    });
+
+    // 📩 Send emails in background
+    setImmediate(async () => {
+      try {
+        await Promise.all([
+          // Admin email
+          transporter.sendMail({
+            from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
+            to: process.env.EMAIL_USER,
+            subject: `📩 New Contact Form: ${saved.subject}`,
+            text: `
 New contact form submission:
 
 Name: ${saved.name}
@@ -175,15 +197,15 @@ Email: ${saved.email}
 Phone: ${saved.phone || "N/A"}
 Subject: ${saved.subject}
 Message: ${saved.message}
-      `,
-    });
+            `,
+          }),
 
-    // 📩 Confirmation email to customer
-    await transporter.sendMail({
-      from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
-      to: saved.email,
-      subject: "✅ We Received Your Message",
-      text: `
+          // Customer confirmation
+          transporter.sendMail({
+            from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
+            to: saved.email,
+            subject: "✅ We Received Your Message",
+            text: `
 Hi ${saved.name},
 
 Thank you for contacting Suraksha Car Care.
@@ -193,12 +215,13 @@ We have received your message and our team will get back to you soon.
 💬 Message: ${saved.message}
 
 - Suraksha Car Care Team
-      `,
-    });
-
-    res.status(201).json({
-      message: "Message sent & emails delivered successfully",
-      contact: saved,
+            `,
+          }),
+        ]);
+        console.log("✅ Contact emails sent");
+      } catch (mailErr) {
+        console.error("❌ Contact email failed:", mailErr);
+      }
     });
   } catch (err) {
     console.error("❌ Error saving contact:", err);
