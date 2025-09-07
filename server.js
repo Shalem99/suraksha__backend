@@ -33,7 +33,7 @@ const appointmentSchema = new mongoose.Schema(
     service: { type: String, required: true },
     date: { type: Date, required: true },
     time: { type: String, required: true },
-    address: { type: String, required: true },
+    address: { type: String, required: false },
     carModel: { type: String, required: true, trim: true },
     message: { type: String, trim: true },
     status: {
