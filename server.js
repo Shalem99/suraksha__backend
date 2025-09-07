@@ -2,7 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const nodemailer = require("nodemailer");
+const SibApiV3Sdk = require("@getbrevo/brevo");
 
 dotenv.config();
 
@@ -57,28 +57,28 @@ const contactSchema = new mongoose.Schema(
 );
 const Contact = mongoose.model("Contact", contactSchema);
 
-// ================== EMAIL SETUP (Brevo SMTP) ==================
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || "smtp-relay.brevo.com",
-  port: process.env.EMAIL_PORT || 587,
-  secure: false, // Brevo requires STARTTLS, so keep false for port 587
-  auth: {
-    user: process.env.EMAIL_USER, // e.g. 9676f1001@smtp-brevo.com
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
+// ================== BREVO EMAIL SETUP ==================
+let defaultClient = SibApiV3Sdk.ApiClient.instance;
+let apiKey = defaultClient.authentications["api-key"];
+apiKey.apiKey = process.env.BREVO_API_KEY;
 
-// ✅ Verify transporter
-transporter.verify((err, success) => {
-  if (err) {
-    console.error("❌ Brevo error:", err);
-  } else {
-    console.log("✅ Brevo is ready to send emails");
+let brevo = new SibApiV3Sdk.TransactionalEmailsApi();
+
+async function sendEmail({ to, subject, text }) {
+  try {
+    let sendSmtpEmail = {
+      sender: { email: "noreply@surakshacarcare.com", name: "Suraksha Car Care" },
+      to: [{ email: to }],
+      subject,
+      textContent: text,
+    };
+
+    await brevo.sendTransacEmail(sendSmtpEmail);
+    console.log(`✅ Email sent to ${to}`);
+  } catch (err) {
+    console.error("❌ Email sending failed:", err.message || err);
   }
-});
+}
 
 // ================== ROUTES ==================
 
@@ -102,22 +102,17 @@ app.post("/api/appointments", async (req, res) => {
 
     const saved = await appointment.save();
 
-    // ✅ Respond immediately
     res.status(201).json({
       message: "Appointment booked successfully (emails will be sent in background)",
       appointment: saved,
     });
 
-    // 📩 Send emails in background
+    // 📩 Send emails asynchronously
     setImmediate(async () => {
-      try {
-        await Promise.all([
-          // Admin email
-          transporter.sendMail({
-            from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
-            to: process.env.EMAIL_USER,
-            subject: "🚗 New Appointment Booked",
-            text: `
+      await sendEmail({
+        to: process.env.EMAIL_USER || "youradmin@example.com",
+        subject: "🚗 New Appointment Booked",
+        text: `
 New booking received:
 
 Name: ${saved.name}
@@ -128,15 +123,13 @@ Date: ${saved.date.toDateString()} at ${saved.time}
 Car: ${saved.carModel}
 Address: ${saved.address || "N/A"}
 Message: ${saved.message || "N/A"}
-            `,
-          }),
+        `,
+      });
 
-          // Customer confirmation
-          transporter.sendMail({
-            from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
-            to: saved.email,
-            subject: "✅ Appointment Confirmation",
-            text: `
+      await sendEmail({
+        to: saved.email,
+        subject: "✅ Appointment Confirmation",
+        text: `
 Hi ${saved.name},
 
 Your appointment has been successfully booked with Suraksha Car Care.
@@ -149,20 +142,12 @@ Your appointment has been successfully booked with Suraksha Car Care.
 We will contact you shortly. Thank you for choosing us!
 
 - Suraksha Car Care Team
-            `,
-          }),
-        ]);
-        console.log("✅ Appointment emails sent");
-      } catch (mailErr) {
-        console.error("❌ Appointment email failed:", mailErr);
-      }
+        `,
+      });
     });
   } catch (err) {
     console.error("❌ Error booking appointment:", err);
-    res.status(400).json({
-      message: "Error booking appointment",
-      error: err.message,
-    });
+    res.status(400).json({ message: "Error booking appointment", error: err.message });
   }
 });
 
@@ -174,22 +159,17 @@ app.post("/api/contact", async (req, res) => {
     const contact = new Contact({ name, email, phone, subject, message });
     const saved = await contact.save();
 
-    // ✅ Respond immediately
     res.status(201).json({
       message: "Message received successfully (emails will be sent in background)",
       contact: saved,
     });
 
-    // 📩 Send emails in background
+    // 📩 Send emails asynchronously
     setImmediate(async () => {
-      try {
-        await Promise.all([
-          // Admin email
-          transporter.sendMail({
-            from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
-            to: process.env.EMAIL_USER,
-            subject: `📩 New Contact Form: ${saved.subject}`,
-            text: `
+      await sendEmail({
+        to: process.env.EMAIL_USER || "youradmin@example.com",
+        subject: `📩 New Contact Form: ${saved.subject}`,
+        text: `
 New contact form submission:
 
 Name: ${saved.name}
@@ -197,15 +177,13 @@ Email: ${saved.email}
 Phone: ${saved.phone || "N/A"}
 Subject: ${saved.subject}
 Message: ${saved.message}
-            `,
-          }),
+        `,
+      });
 
-          // Customer confirmation
-          transporter.sendMail({
-            from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
-            to: saved.email,
-            subject: "✅ We Received Your Message",
-            text: `
+      await sendEmail({
+        to: saved.email,
+        subject: "✅ We Received Your Message",
+        text: `
 Hi ${saved.name},
 
 Thank you for contacting Suraksha Car Care.
@@ -215,36 +193,12 @@ We have received your message and our team will get back to you soon.
 💬 Message: ${saved.message}
 
 - Suraksha Car Care Team
-            `,
-          }),
-        ]);
-        console.log("✅ Contact emails sent");
-      } catch (mailErr) {
-        console.error("❌ Contact email failed:", mailErr);
-      }
+        `,
+      });
     });
   } catch (err) {
     console.error("❌ Error saving contact:", err);
-    res.status(400).json({
-      message: "Error sending message",
-      error: err.message,
-    });
-  }
-});
-
-// ----- Test Email -----
-app.get("/test-email", async (req, res) => {
-  try {
-    await transporter.sendMail({
-      from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
-      to: "yourgmail@gmail.com", // change to your personal email
-      subject: "✅ Brevo Test Email",
-      text: "This is a test email sent via Brevo SMTP from Suraksha Car Care app.",
-    });
-    res.send("✅ Test email sent via Brevo!");
-  } catch (err) {
-    console.error("❌ Test email failed:", err);
-    res.status(500).send("❌ Failed: " + err.message);
+    res.status(400).json({ message: "Error sending message", error: err.message });
   }
 });
 
