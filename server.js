@@ -10,7 +10,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// ================== Middleware ==================
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -18,7 +18,8 @@ app.use(express.urlencoded({ extended: true }));
 // ================== MongoDB Connection ==================
 mongoose
   .connect(
-    process.env.MONGODB_URI || "mongodb://mongo:dkkhogxzzRHFjvqjiQYhaDilpHjEFwIV@trolley.proxy.rlwy.net:50490",
+    process.env.MONGODB_URI ||
+      "mongodb://mongo:dkkhogxzzRHFjvqjiQYhaDilpHjEFwIV@trolley.proxy.rlwy.net:50490",
     { useNewUrlParser: true, useUnifiedTopology: true }
   )
   .then(() => console.log("✅ MongoDB connected successfully"))
@@ -31,6 +32,7 @@ const appointmentSchema = new mongoose.Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, required: true, trim: true },
     service: { type: String, required: true },
+    // Convert string -> Date in controller
     date: { type: Date, required: true },
     time: { type: String, required: true },
     address: { type: String, required: false },
@@ -69,10 +71,25 @@ const transporter = nodemailer.createTransport({
 
 // ================== ROUTES ==================
 
-// ----- Appointments -----
+// ----- Book Appointment -----
 app.post("/api/appointments", async (req, res) => {
   try {
-    const appointment = new Appointment(req.body);
+    const { name, email, phone, service, date, time, address, carModel, message } =
+      req.body;
+
+    // 🔹 Ensure date is stored as proper Date
+    const appointment = new Appointment({
+      name,
+      email,
+      phone,
+      service,
+      date: new Date(date), // converts "2025-09-11" -> Date object
+      time,
+      address,
+      carModel,
+      message,
+    });
+
     const saved = await appointment.save();
 
     // 📩 Email to admin
@@ -89,12 +106,12 @@ Phone: ${saved.phone}
 Service: ${saved.service}
 Date: ${saved.date.toDateString()} at ${saved.time}
 Car: ${saved.carModel}
-Address: ${saved.address}
+Address: ${saved.address || "N/A"}
 Message: ${saved.message || "N/A"}
       `,
     });
 
-    // 📩 Confirmation to customer
+    // 📩 Confirmation email to customer
     await transporter.sendMail({
       from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
       to: saved.email,
@@ -121,14 +138,19 @@ We will contact you shortly. Thank you for choosing us!
     });
   } catch (err) {
     console.error("❌ Error booking appointment:", err);
-    res.status(400).json({ message: "Error booking appointment" });
+    res.status(400).json({
+      message: "Error booking appointment",
+      error: err.message,
+    });
   }
 });
 
-// ----- Contact -----
+// ----- Contact Form -----
 app.post("/api/contact", async (req, res) => {
   try {
-    const contact = new Contact(req.body);
+    const { name, email, phone, subject, message } = req.body;
+
+    const contact = new Contact({ name, email, phone, subject, message });
     const saved = await contact.save();
 
     // 📩 Email to admin
@@ -147,7 +169,7 @@ Message: ${saved.message}
       `,
     });
 
-    // 📩 Confirmation to customer
+    // 📩 Confirmation email to customer
     await transporter.sendMail({
       from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
       to: saved.email,
@@ -171,7 +193,10 @@ We have received your message and our team will get back to you soon.
     });
   } catch (err) {
     console.error("❌ Error saving contact:", err);
-    res.status(400).json({ message: "Error sending message" });
+    res.status(400).json({
+      message: "Error sending message",
+      error: err.message,
+    });
   }
 });
 
