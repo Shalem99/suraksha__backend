@@ -16,10 +16,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // ================== MongoDB Connection ==================
 mongoose
-  .connect(
-    process.env.MONGODB_URI,
-    { useNewUrlParser: true, useUnifiedTopology: true }
-  )
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => console.log("✅ MongoDB connected successfully"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
@@ -57,26 +57,26 @@ const contactSchema = new mongoose.Schema(
 );
 const Contact = mongoose.model("Contact", contactSchema);
 
-// ================== EMAIL SETUP ==================
+// ================== EMAIL SETUP (Brevo SMTP) ==================
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST, // e.g., smtp.gmail.com
-  port: process.env.EMAIL_PORT, // 587
-  secure: process.env.EMAIL_PORT == 465, // true for 465, false for 587
+  host: process.env.EMAIL_HOST || "smtp-relay.brevo.com",
+  port: process.env.EMAIL_PORT || 587,
+  secure: false, // Brevo requires STARTTLS, so keep false for port 587
   auth: {
-    user: process.env.EMAIL_USER,
+    user: process.env.EMAIL_USER, // e.g. 9676f1001@smtp-brevo.com
     pass: process.env.EMAIL_PASS,
   },
-  pool: true,         // ♻️ reuse connections
-  maxConnections: 5,  // up to 5 connections
-  maxMessages: 100,   // reuse a connection for 100 emails
+  tls: {
+    rejectUnauthorized: false,
+  },
 });
 
 // ✅ Verify transporter
 transporter.verify((err, success) => {
   if (err) {
-    console.error("❌ Nodemailer error:", err);
+    console.error("❌ Brevo error:", err);
   } else {
-    console.log("✅ Nodemailer is ready to send emails");
+    console.log("✅ Brevo is ready to send emails");
   }
 });
 
@@ -229,6 +229,22 @@ We have received your message and our team will get back to you soon.
       message: "Error sending message",
       error: err.message,
     });
+  }
+});
+
+// ----- Test Email -----
+app.get("/test-email", async (req, res) => {
+  try {
+    await transporter.sendMail({
+      from: `"Suraksha Car Care" <${process.env.EMAIL_USER}>`,
+      to: "yourgmail@gmail.com", // change to your personal email
+      subject: "✅ Brevo Test Email",
+      text: "This is a test email sent via Brevo SMTP from Suraksha Car Care app.",
+    });
+    res.send("✅ Test email sent via Brevo!");
+  } catch (err) {
+    console.error("❌ Test email failed:", err);
+    res.status(500).send("❌ Failed: " + err.message);
   }
 });
 
