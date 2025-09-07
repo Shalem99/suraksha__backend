@@ -18,7 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 // ================== MongoDB Connection ==================
 mongoose
   .connect(
-    process.env.MONGODB_URI || "mongodb://localhost:27017/suraksha-car-care",
+    process.env.MONGODB_URI || "mongodb://mongo:dkkhogxzzRHFjvqjiQYhaDilpHjEFwIV@trolley.proxy.rlwy.net:50490",
     { useNewUrlParser: true, useUnifiedTopology: true }
   )
   .then(() => console.log("✅ MongoDB connected successfully"))
